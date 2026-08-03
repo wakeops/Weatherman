@@ -7,6 +7,6 @@ namespace Weatherman.Bot.Data.Models
     {
         public string Id { get; set; }
         public string HomeLocation { get; set; }
-        public DateTime HomeLocationChangedDate { get; set; }
+        public DateTime? HomeLocationChangedDate { get; set; }
     }
 }
