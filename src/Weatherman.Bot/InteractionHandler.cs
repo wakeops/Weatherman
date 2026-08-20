@@ -39,7 +39,17 @@ namespace Weatherman.Bot
             }
         }
 
-        private async Task HandleInteractionAsync(SocketInteraction interaction)
+        private Task HandleInteractionAsync(SocketInteraction interaction)
+        {
+            // Discord.Net awaits gateway event handlers before processing the next payload,
+            // so running command execution inline here would delay dispatch of subsequent
+            // interactions and risk missing the 3-second defer window. Run on a separate
+            // task so the gateway loop isn't blocked by slow command execution.
+            _ = Task.Run(() => HandleInteractionInternalAsync(interaction));
+            return Task.CompletedTask;
+        }
+
+        private async Task HandleInteractionInternalAsync(SocketInteraction interaction)
         {
             try
             {
