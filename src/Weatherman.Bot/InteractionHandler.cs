@@ -39,7 +39,13 @@ namespace Weatherman.Bot
             }
         }
 
-        private async Task HandleInteractionAsync(SocketInteraction interaction)
+        private Task HandleInteractionAsync(SocketInteraction interaction)
+        {
+            _ = Task.Run(() => HandleInteractionInternalAsync(interaction));
+            return Task.CompletedTask;
+        }
+
+        private async Task HandleInteractionInternalAsync(SocketInteraction interaction)
         {
             try
             {
