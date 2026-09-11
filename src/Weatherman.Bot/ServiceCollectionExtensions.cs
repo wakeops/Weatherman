@@ -76,23 +76,22 @@ internal static class ServiceCollectionExtensions
         return services;
     }
 
-    public static T ApplyValidatedOptions<T>(this IServiceCollection services, IConfiguration configuration, string configSectionPath = null)
+    public static T ApplyValidatedOptions<T>(this IServiceCollection services, IConfiguration configuration)
         where T : class, new()
     {
         services.AddOptionsWithValidateOnStart<T>()
-            .BindConfiguration(configSectionPath)
             .ValidateDataAnnotations();
 
         // A section that is absent entirely binds to null; validate a default instance so the
         // failure names the missing settings rather than surfacing as a null reference.
-        var options = configuration.GetSection(configSectionPath).Get<T>() ?? new T();
+        var options = configuration.Get<T>() ?? new T();
 
-        Validate(options, configSectionPath);
+        Validate(options);
 
         return options;
     }
 
-    private static void Validate<T>(T options, string configSectionPath)
+    private static void Validate<T>(T options)
         where T : class
     {
         var results = new List<ValidationResult>();
@@ -104,10 +103,10 @@ internal static class ServiceCollectionExtensions
 
         var failures = results
             .Select(result => string.Join(", ", result.MemberNames) is { Length: > 0 } members
-                ? $"{configSectionPath}:{members} - {result.ErrorMessage}"
-                : $"{configSectionPath} - {result.ErrorMessage}")
+                ? $"{members} - {result.ErrorMessage}"
+                : $"{result.ErrorMessage}")
             .ToList();
 
-        throw new OptionsValidationException(configSectionPath, typeof(T), failures);
+        throw new OptionsValidationException(null, typeof(T), failures);
     }
 }
