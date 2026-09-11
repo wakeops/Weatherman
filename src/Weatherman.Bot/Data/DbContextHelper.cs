@@ -1,20 +1,19 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 
-namespace Weatherman.Bot.Data
+namespace Weatherman.Bot.Data;
+
+public class DbContextHelper
 {
-    public class DbContextHelper
+    private IServiceScopeFactory _scopeFactory;
+
+    public DbContextHelper(IServiceScopeFactory serviceScopeFactory)
     {
-        private IServiceScopeFactory _scopeFactory;
+        _scopeFactory = serviceScopeFactory;
+    }
 
-        public DbContextHelper(IServiceScopeFactory serviceScopeFactory)
-        {
-            _scopeFactory = serviceScopeFactory;
-        }
-
-        public BotDbContext GetDbContext()
-        {
-            var scope = _scopeFactory.CreateScope();
-            return scope.ServiceProvider.GetRequiredService<BotDbContext>();
-        }
+    public BotDbContext GetDbContext()
+    {
+        var scope = _scopeFactory.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<BotDbContext>();
     }
 }

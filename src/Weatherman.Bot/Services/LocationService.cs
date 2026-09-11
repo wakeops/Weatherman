@@ -1,80 +1,85 @@
-﻿using Geo.Here.Abstractions;
+﻿using Geo.Here;
 using Geo.Here.Models.Parameters;
 using Geo.Here.Models.Responses;
 using Microsoft.Extensions.Logging;
-using Weatherman.Bot.Cache;
 using Weatherman.Bot.Models;
+using ZiggyCreatures.Caching.Fusion;
 
-namespace Weatherman.Bot.Services
+namespace Weatherman.Bot.Services;
+
+public class LocationService
 {
-    public class LocationService
+    private readonly IHereGeocoding _hereGeocoding;
+    private readonly IFusionCache _cache;
+    private readonly ILogger<LocationService> _logger;
+
+    private readonly TimeSpan _geocodeCacheExpiration = TimeSpan.FromHours(1);
+
+    public LocationService(IHereGeocoding hereGeocoding, IFusionCache cache, ILogger<LocationService> logger)
     {
-        private readonly IHereGeocoding _hereGeocoding;
-        private readonly ICache _cache;
-        private readonly ILogger<LocationService> _logger;
+        _hereGeocoding = hereGeocoding;
+        _cache = cache;
+        _logger = logger;
+    }
 
-        private readonly TimeSpan _geocodeCacheExpiration = TimeSpan.FromHours(1);
+    public async Task<LocationDetails> GetGeocodeForLocationStringAsync(string locationQuery)
+    {
+        return await _cache.GetOrSetAsync(
+            $"geocodev2-{locationQuery}",
+            _ => SearchGeocodeByLocationFromApiAsync(locationQuery),
+            _geocodeCacheExpiration);
+    }
 
-        public LocationService(IHereGeocoding hereGeocoding, ICache cache, ILogger<LocationService> logger)
+    private async Task<LocationDetails> SearchGeocodeByLocationFromApiAsync(string locationQuery)
+    {
+        _logger.LogInformation("Fetching location for '{Location}'", locationQuery);
+
+        try
         {
-            _hereGeocoding = hereGeocoding;
-            _cache = cache;
-            _logger = logger;
+            var geocodeResponse = await _hereGeocoding.GeocodingAsync(new GeocodeParameters { Query = locationQuery });
+
+            // Best match wins; US results break ties, since most users are searching US locations.
+            var location = geocodeResponse.Items
+                .OrderByDescending(a => a.Scoring.QueryScore)
+                .ThenByDescending(a => a.Address.CountryCode == "USA")
+                .FirstOrDefault();
+
+            if (location == null)
+            {
+                _logger.LogWarning("No geocode results for '{Location}'", locationQuery);
+                return null;
+            }
+
+            return new LocationDetails
+            {
+                Coordinates = new Coordinates
+                {
+                    Latitude = location.Position.Latitude,
+                    Longitude = location.Position.Longitude
+                },
+                Country = location.Address.CountryName,
+                Region = location.Address.State,
+                City = location.Address.City
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resolve geocode: '{Location}'", locationQuery);
         }
 
-        public async Task<LocationDetails> GetGeocodeForLocationStringAsync(string locationQuery)
+        return null;
+    }
+
+    private class GeocodeComparer : IComparer<GeocodeLocation>
+    {
+        public int Compare(GeocodeLocation x, GeocodeLocation y)
         {
-            var cacheKey = $"geocodev2-{locationQuery}";
-
-            var details = await _cache.GetAsync<LocationDetails>(cacheKey);
-            if (details != null)
+            if (x.Scoring.QueryScore == y.Scoring.QueryScore && x.Address.CountryCode != y.Address.CountryCode && x.Address.CountryCode == "USA")
             {
-                return details;
+                return 1;
             }
 
-            _logger.LogInformation("Fetching location for '{0}'", locationQuery);
-
-            try
-            {
-                var geocodeResponse = await _hereGeocoding.GeocodingAsync(new GeocodeParameters { Query = locationQuery });
-
-                var location = geocodeResponse.Items.OrderByDescending(a => a, new GeocodeComparer()).ToList().First();
-
-                details = new LocationDetails
-                {
-                    Coordinates = new Coordinates
-                    {
-                        Latitude = location.Position.Latitude,
-                        Longitude = location.Position.Longitude
-                    },
-                    Country = location.Address.CountryName,
-                    Region = location.Address.State,
-                    City = location.Address.City
-                };
-
-                await _cache.SetAsync(cacheKey, details, _geocodeCacheExpiration);
-
-                return details;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Failed to resolve geocode: '${locationQuery}'");
-            }
-
-            return null;
-        }
-
-        private class GeocodeComparer : IComparer<GeocodeLocation>
-        {
-            public int Compare(GeocodeLocation x, GeocodeLocation y)
-            {
-                if (x.Scoring.QueryScore == y.Scoring.QueryScore && x.Address.CountryCode != y.Address.CountryCode && x.Address.CountryCode == "USA")
-                {
-                    return 1;
-                }
-
-                return x.Scoring.QueryScore.CompareTo(y.Scoring.QueryScore);
-            }
+            return x.Scoring.QueryScore.CompareTo(y.Scoring.QueryScore);
         }
     }
 }

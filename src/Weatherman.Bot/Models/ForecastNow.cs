@@ -1,9 +1,9 @@
 ﻿using DarkSky.Models;
 
-namespace Weatherman.Bot.Models
+namespace Weatherman.Bot.Models;
+
+public class ForecastNow
 {
-    public class ForecastNow
-    {
 		public string Condition { get; set; }
 		public double Temperature { get; set; }
 		public double Humidity { get; set; }
@@ -21,5 +21,4 @@ namespace Weatherman.Bot.Models
 		public double? PrecipitationIntensityMax { get; set; }
 		public double SnowAccumulation { get; set; }
 		public IEnumerable<WeatherAlert> Alerts { get; set; }
-    }
 }

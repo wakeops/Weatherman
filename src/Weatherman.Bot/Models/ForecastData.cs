@@ -1,9 +1,8 @@
-﻿namespace Weatherman.Bot.Models
-{
-    public class ForecastData<T> where T : class
-    {
-        public string TimeZone { get; set; }
+﻿namespace Weatherman.Bot.Models;
 
-        public T Data { get; set; }
-    }
+public class ForecastData<T> where T : class
+{
+    public string TimeZone { get; set; }
+
+    public T Data { get; set; }
 }

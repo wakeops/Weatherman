@@ -1,9 +1,13 @@
-<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" TreatAsLocalProperty="OutDir;Configuration">
+<Project>
   <PropertyGroup>
-      <RepositoryRootDirectory>$(MSBuildThisFileDirectory)</RepositoryRootDirectory>
-      <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-      <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-      <OutputPath>$(RepositoryRootDirectory)\build\$(MSBuildProjectName)\$(Configuration)\bin\</OutputPath>
-      <BaseIntermediateOutputPath>$(RepositoryRootDirectory)\build\$(MSBuildProjectName)\$(Configuration)\obj\</BaseIntermediateOutputPath>
+    <TargetFramework>net10.0</TargetFramework>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnforceCodeStyleInBuild Condition="'$(Configuration)' == 'Debug'">true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

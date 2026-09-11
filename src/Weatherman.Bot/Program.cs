@@ -1,91 +1,60 @@
-﻿using Discord;
-using Discord.Addons.Hosting;
-using Discord.WebSocket;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Weatherman.Bot;
 using Weatherman.Bot.Services;
-using Geo.Here.DependencyInjection;
-using DarkSky.Services;
 using Weatherman.Bot.Data;
-using Weatherman.Bot.Cache;
-using Serilog;
-using Serilog.Events;
+using Geo.Extensions.DependencyInjection;
+using DarkSky.Services;
 
-const LogSeverity DiscordLogLevel = LogSeverity.Info;
+// Avoid slow thread injection delaying interaction defers past Discord's 3s window.
+ThreadPool.SetMinThreads(Math.Max(Environment.ProcessorCount * 4, 16), Math.Max(Environment.ProcessorCount * 4, 16));
 
-var logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
-    .MinimumLevel.Override("System.Net.Http.HttpClient.IHereGeocoding", LogEventLevel.Error);
+var builder = Host.CreateApplicationBuilder(args);
 
-if (string.Equals(Environment.GetEnvironmentVariable("LoggingOutput"), "flat", StringComparison.OrdinalIgnoreCase))
-{
-    logger.WriteTo.Console(outputTemplate: "[{Level:u4} {Timestamp:HH:mm:ss.fff}] {SourceContext}{NewLine}{Message} {Exception}{NewLine}");
-}
-else
-{
-    logger.WriteTo.Sink<GraylogConsoleSink>();
-}
+// Configuration
+builder.Configuration
+    .AddJsonFile("appsettings.json")
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true)
+    .AddEnvironmentVariables();
 
-Log.Logger = logger.CreateLogger();
+// Logging
+builder.Logging
+    .ClearProviders()
+    .AddBotLogging(builder.Environment, builder.Configuration);
 
-IHost host = Host.CreateDefaultBuilder(args)
-    .UseSerilog()
-    .ConfigureAppConfiguration((hostingContext, builder) =>
-    {
-        builder.Sources.Clear();
+// A Discord gateway hiccup can throw inside a DiscordClientService. The default is to stop the
+// host, which takes the bot down and loses anything held in memory; log and keep running instead.
+builder.Services.Configure<HostOptions>(options =>
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
 
-        builder.AddEnvironmentVariables();
-    })
-    .ConfigureDiscordHost((context, config) =>
-    {
-        config.SocketConfig = new DiscordSocketConfig
-        {
-            LogLevel = DiscordLogLevel,
-            MessageCacheSize = 0
-        };
+// Bot Configuration
+builder.Services.Configure<BotConfiguration>(builder.Configuration);
 
-        config.Token = context.Configuration.Get<BotConfiguration>().DiscordToken;
+var botConfiguration = builder.Configuration.Get<BotConfiguration>();
 
-        config.SocketConfig.GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.DirectMessages;
+// Services
+builder.Services.AddHereGeocoding()
+    .AddKey(botConfiguration.HereApiKey);
 
-        config.LogFormat = (message, exception) => $"{message.Source}: {message.Message}";
-    })
-    .UseInteractionService((context, config) =>
-    {
-        config.LogLevel = DiscordLogLevel;
-        config.UseCompiledLambda = true;
-    })
-    .UseCommandService((context, config) =>
-    {
-        config.LogLevel = DiscordLogLevel;
-    })
-    .ConfigureServices((hostContext, services) =>
-    {
-        services.Configure<BotConfiguration>(hostContext.Configuration);
+builder.Services
+    .AddCache(builder.Configuration)
+    .AddDiscord()
 
-        var botConfiguration = hostContext.Configuration.Get<BotConfiguration>();
+    .AddTransient(sp => new DarkSkyService(
+        botConfiguration.PirateWeatherKey,
+        baseUri: new Uri(Constants.PirateWeatherApi),
+        jsonSerializerService: new DarkSkyJsonSerializerService()))
 
-        services.AddCache(options => options.RedisConfiguration = botConfiguration.RedisAddress);
+    .AddSingleton<LocationService>()
+    .AddSingleton<WeatherService>()
+    .AddSingleton<HomeService>()
+    .AddSingleton<StatsWriter>()
 
-        services.AddHereServices(builder => builder.UseKey(botConfiguration.HereApiKey));
-        services.AddTransient(sp => new DarkSkyService(
-            botConfiguration.PirateWeatherKey,
-            baseUri: new Uri(Constants.PirateWeatherApi),
-            jsonSerializerService: new DarkSkyJsonSerializerService()));
+    .AddSingleton<DbContextHelper>()
+    .AddDbContext<BotDbContext>();
 
-        services.AddSingleton<LocationService>();
-        services.AddSingleton<WeatherService>();
-        services.AddSingleton<HomeService>();
-
-        services.AddHostedService<InteractionHandler>();
-        services.AddHostedService<CommandHandler>();
-
-        services.AddSingleton<DbContextHelper>();
-        services.AddDbContext<BotDbContext>();
-    })
-    .Build();
-
-await host.RunAsync();
+// Build and run
+var app = builder.Build();
+await app.RunAsync();
