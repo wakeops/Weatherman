@@ -14,3 +14,7 @@ services:
       OwnerId: "${OWNER_ID?missing discord owner id}"
     volumes:
       - ${VOLUME_ROOT?missing volume root}/weatherplugin:/data
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "${GELF_ADDRESS}"
