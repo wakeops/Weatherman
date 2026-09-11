@@ -10,7 +10,7 @@ public class StatsWriter(DiscordSocketClient client, IOptions<BotConfiguration> 
 {
     private readonly BotConfiguration _configuration = options.Value;
 
-    public async Task PostStatsMessageAsync(SocketInteractionContext context)
+    public async Task<string> GetStatsMessageAsync(SocketInteractionContext context)
     {
         var sb = new StringBuilder();
 
@@ -25,7 +25,7 @@ public class StatsWriter(DiscordSocketClient client, IOptions<BotConfiguration> 
 
         sb.AppendLine("```");
 
-        await context.Channel.SendMessageAsync(sb.ToString());
+        return sb.ToString();
     }
 
     private void WriteHostMetrics(StringBuilder sb)

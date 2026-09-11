@@ -34,7 +34,8 @@ public class WeatherModule : InteractionModuleBase<SocketInteractionContext>
 
         if (location == "stats")
         {
-            await _statsWriter.PostStatsMessageAsync(Context);
+            var statsMessage = await _statsWriter.GetStatsMessageAsync(Context);
+            await ModifyOriginalResponseAsync(properties => properties.Content = statsMessage);
             return;
         }
 
