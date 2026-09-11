@@ -1,12 +1,15 @@
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Text;
 
 namespace Weatherman.Bot.Services;
 
-public class StatsWriter(DiscordSocketClient client, BotConfiguration configuration)
+public class StatsWriter(DiscordSocketClient client, IOptions<BotConfiguration> options)
 {
+    private readonly BotConfiguration _configuration = options.Value;
+
     public async Task PostStatsMessageAsync(SocketInteractionContext context)
     {
         var sb = new StringBuilder();
@@ -15,7 +18,7 @@ public class StatsWriter(DiscordSocketClient client, BotConfiguration configurat
 
         WriteHostMetrics(sb);
 
-        if (context.User.Id == configuration.OwnerId)
+        if (context.User.Id == _configuration.OwnerId)
         {
             WriteGuildData(sb);
         }
