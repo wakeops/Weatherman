@@ -25,7 +25,7 @@ internal static class ServiceCollectionExtensions
 
             config.SocketConfig = new()
             {
-                GatewayIntents = GatewayIntents.GuildMessages | GatewayIntents.MessageContent | GatewayIntents.GuildMembers,
+                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMessages | GatewayIntents.DirectMessages,
                 LogLevel = LogSeverity.Info,
                 AlwaysDownloadUsers = false,
                 UseInteractionSnowflakeDate = false
